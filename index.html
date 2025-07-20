@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 h-full">
+    <!-- 导航栏 -->
+    <nav class="bg-primary text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">商品管理系统</h1>
+            <div class="flex items-center space-x-4">
+                <select id="userRole" class="bg-white text-gray-900 px-3 py-1 rounded text-base">
+                    <option value="admin">管理员</option>
+                    <option value="employee">员工</option>
+                </select>
+                <span id="userStatus" class="text-sm">当前身份: 管理员</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 max-w-6xl">
+        <!-- 搜索和操作栏 -->
+        <div class="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div class="flex-1 w-full sm:max-w-md">
+                <input type="text" id="searchInput" placeholder="搜索商品名称..." 
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+            <div class="flex gap-2">
+                <button id="addProductBtn" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                    添加商品
+                </button>
+                <button id="manageCategoriesBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                    管理分类
+                </button>
+            </div>
+        </div>
+
+        <!-- 商品统计 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <h3 class="text-blue-600 dark:text-blue-400 font-semibold">总商品数</h3>
+                <p id="totalProducts" class="text-2xl font-bold text-blue-700 dark:text-blue-300">0</p>
+            </div>
+            <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                <h3 class="text-green-600 dark:text-green-400 font-semibold">在售商品</h3>
+                <p id="availableProducts" class="text-2xl font-bold text-green-700 dark:text-green-300">0</p>
+            </div>
+            <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                <h3 class="text-red-600 dark:text-red-400 font-semibold">已售商品</h3>
+                <p id="soldProducts" class="text-2xl font-bold text-red-700 dark:text-red-300">0</p>
+            </div>
+        </div>
+
+        <!-- 商品列表 -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">图片</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">商品名称</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">分类</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">售价</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">库存</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">状态</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-300">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody" class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <!-- 商品列表将在这里动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="emptyState" class="text-center py-12 hidden">
+                <p class="text-gray-500 dark:text-gray-400">暂无商品数据</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑商品模态框 -->
+    <div id="productModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <h2 id="modalTitle" class="text-xl font-bold mb-4">添加商品</h2>
+                <form id="productForm">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">商品名称</label>
+                            <input type="text" id="productName" required 
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2">商品图片</label>
+                            <div class="space-y-2">
+                                <input type="file" id="productImage" accept="image/*" 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base">
+                                <div id="imagePreview" class="hidden">
+                                    <img id="previewImg" class="w-24 h-24 object-cover rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2">商品分类</label>
+                            <select id="productCategory" required 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <!-- 分类选项将动态生成 -->
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">售价</label>
+                                <input type="number" id="productPrice" step="0.01" min="0" required 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">库存</label>
+                                <input type="number" id="productStock" min="0" required 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="productSold" class="mr-2">
+                                <span class="text-sm font-medium">是否已售出</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" id="cancelBtn" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                            取消
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                            保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分类管理模态框 -->
+    <div id="categoryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div class="p-6">
+                <h2 class="text-xl font-bold mb-4">管理商品分类</h2>
+                
+                <div class="mb-4">
+                    <div class="flex gap-2">
+                        <input type="text" id="newCategoryInput" placeholder="新分类名称..." 
+                               class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <button id="addCategoryBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                            添加
+                        </button>
+                    </div>
+                </div>
+
+                <div class="max-h-48 overflow-y-auto">
+                    <ul id="categoryList" class="space-y-2">
+                        <!-- 分类列表将动态生成 -->
+                    </ul>
+                </div>
+
+                <div class="flex justify-end mt-6">
+                    <button id="closeCategoryModal" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认删除模态框 -->
+    <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-sm w-full mx-4">
+            <div class="p-6">
+                <h3 class="text-lg font-semibold mb-3">确认删除</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">确定要删除这个商品吗？此操作不可恢复。</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelDeleteBtn" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        取消
+                    </button>
+                    <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                        删除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 深色模式支持
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // 数据存储
+        let products = [];
+        let categories = ['电子产品', '服装', '食品', '书籍', '家居用品'];
+        let currentUser = 'admin';
+        let editingProductId = null;
+        let deleteProductId = null;
+
+        // DOM 元素
+        const productModal = document.getElementById('productModal');
+        const categoryModal = document.getElementById('categoryModal');
+        const deleteModal = document.getElementById('deleteModal');
+        const productForm = document.getElementById('productForm');
+        const searchInput = document.getElementById('searchInput');
+        const userRoleSelect = document.getElementById('userRole');
+        const userStatus = document.getElementById('userStatus');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderProducts();
+            renderCategories();
+            updateStats();
+            setupEventListeners();
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 搜索功能
+            searchInput.addEventListener('input', function() {
+                renderProducts(this.value);
+            });
+
+            // 用户角色切换
+            userRoleSelect.addEventListener('change', function() {
+                currentUser = this.value;
+                userStatus.textContent = `当前身份: ${this.value === 'admin' ? '管理员' : '员工'}`;
+                renderProducts();
+            });
+
+            // 添加商品按钮
+            document.getElementById('addProductBtn').addEventListener('click', function() {
+                openProductModal();
+            });
+
+            // 管理分类按钮
+            document.getElementById('manageCategoriesBtn').addEventListener('click', function() {
+                openCategoryModal();
+            });
+
+            // 商品表单提交
+            productForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveProduct();
+            });
+
+            // 图片预览
+            document.getElementById('productImage').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const preview = document.getElementById('imagePreview');
+                        const img = document.getElementById('previewImg');
+                        img.src = e.target.result;
+                        preview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // 添加分类
+            document.getElementById('addCategoryBtn').addEventListener('click', function() {
+                addCategory();
+            });
+
+            document.getElementById('newCategoryInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addCategory();
+                }
+            });
+
+            // 模态框关闭
+            document.getElementById('cancelBtn').addEventListener('click', closeProductModal);
+            document.getElementById('closeCategoryModal').addEventListener('click', closeCategoryModal);
+            document.getElementById('cancelDeleteBtn').addEventListener('click', closeDeleteModal);
+            document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+                deleteProduct(deleteProductId);
+                closeDeleteModal();
+            });
+
+            // 点击模态框外部关闭
+            [productModal, categoryModal, deleteModal].forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                    }
+                });
+            });
+        }
+
+        // 渲染商品列表
+        function renderProducts(searchTerm = '') {
+            const tbody = document.getElementById('productTableBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            let filteredProducts = products;
+            if (searchTerm) {
+                filteredProducts = products.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }
+
+            if (filteredProducts.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            
+            tbody.innerHTML = filteredProducts.map(product => `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td class="px-4 py-3">
+                        ${product.image ? 
+                            `<img src="${product.image}" class="w-12 h-12 object-cover rounded-lg">` : 
+                            `<div class="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">无图片</span>
+                            </div>`
+                        }
+                    </td>
+                    <td class="px-4 py-3 font-medium">${product.name}</td>
+                    <td class="px-4 py-3">${product.category}</td>
+                    <td class="px-4 py-3">¥${product.price.toFixed(2)}</td>
+                    <td class="px-4 py-3">${product.stock}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full ${product.sold ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'}">
+                            ${product.sold ? '已售出' : '在售'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex space-x-2">
+                            <button onclick="editProduct(${product.id})" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                                编辑
+                            </button>
+                            ${currentUser === 'admin' ? 
+                                `<button onclick="showDeleteModal(${product.id})" class="text-red-600 dark:text-red-400 hover:underline text-sm">
+                                    删除
+                                </button>` : ''
+                            }
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 渲染分类选择器
+        function renderCategories() {
+            const categorySelect = document.getElementById('productCategory');
+            categorySelect.innerHTML = categories.map(category => 
+                `<option value="${category}">${category}</option>`
+            ).join('');
+
+            const categoryList = document.getElementById('categoryList');
+            categoryList.innerHTML = categories.map(category => `
+                <li class="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                    <span>${category}</span>
+                    <button onclick="removeCategory('${category}')" class="text-red-600 dark:text-red-400 hover:underline text-sm">
+                        删除
+                    </button>
+                </li>
+            `).join('');
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            document.getElementById('totalProducts').textContent = products.length;
+            document.getElementById('availableProducts').textContent = products.filter(p => !p.sold).length;
+            document.getElementById('soldProducts').textContent = products.filter(p => p.sold).length;
+        }
+
+        // 打开商品模态框
+        function openProductModal(product = null) {
+            editingProductId = product ? product.id : null;
+            document.getElementById('modalTitle').textContent = product ? '编辑商品' : '添加商品';
+            
+            if (product) {
+                document.getElementById('productName').value = product.name;
+                document.getElementById('productCategory').value = product.category;
+                document.getElementById('productPrice').value = product.price;
+                document.getElementById('productStock').value = product.stock;
+                document.getElementById('productSold').checked = product.sold;
+                
+                if (product.image) {
+                    document.getElementById('previewImg').src = product.image;
+                    document.getElementById('imagePreview').classList.remove('hidden');
+                }
+            } else {
+                productForm.reset();
+                document.getElementById('imagePreview').classList.add('hidden');
+            }
+            
+            productModal.classList.remove('hidden');
+            productModal.classList.add('fade-in');
+        }
+
+        // 关闭商品模态框
+        function closeProductModal() {
+            productModal.classList.add('hidden');
+            editingProductId = null;
+        }
+
+        // 保存商品
+        function saveProduct() {
+            const name = document.getElementById('productName').value;
+            const category = document.getElementById('productCategory').value;
+            const price = parseFloat(document.getElementById('productPrice').value);
+            const stock = parseInt(document.getElementById('productStock').value);
+            const sold = document.getElementById('productSold').checked;
+            const imageFile = document.getElementById('productImage').files[0];
+
+            const productData = {
+                name,
+                category,
+                price,
+                stock,
+                sold,
+                image: null
+            };
+
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    productData.image = e.target.result;
+                    saveProductData(productData);
+                };
+                reader.readAsDataURL(imageFile);
+            } else if (editingProductId) {
+                const existingProduct = products.find(p => p.id === editingProductId);
+                productData.image = existingProduct ? existingProduct.image : null;
+                saveProductData(productData);
+            } else {
+                saveProductData(productData);
+            }
+        }
+
+        // 保存商品数据
+        function saveProductData(productData) {
+            if (editingProductId) {
+                const index = products.findIndex(p => p.id === editingProductId);
+                products[index] = { ...productData, id: editingProductId };
+            } else {
+                productData.id = Date.now();
+                products.push(productData);
+            }
+            
+            renderProducts();
+            updateStats();
+            closeProductModal();
+        }
+
+        // 编辑商品
+        function editProduct(id) {
+            const product = products.find(p => p.id === id);
+            if (product) {
+                openProductModal(product);
+            }
+        }
+
+        // 显示删除确认模态框
+        function showDeleteModal(id) {
+            if (currentUser !== 'admin') return;
+            deleteProductId = id;
+            deleteModal.classList.remove('hidden');
+        }
+
+        // 关闭删除模态框
+        function closeDeleteModal() {
+            deleteModal.classList.add('hidden');
+            deleteProductId = null;
+        }
+
+        // 删除商品
+        function deleteProduct(id) {
+            products = products.filter(p => p.id !== id);
+            renderProducts();
+            updateStats();
+        }
+
+        // 打开分类管理模态框
+        function openCategoryModal() {
+            categoryModal.classList.remove('hidden');
+            categoryModal.classList.add('fade-in');
+        }
+
+        // 关闭分类管理模态框
+        function closeCategoryModal() {
+            categoryModal.classList.add('hidden');
+        }
+
+        // 添加分类
+        function addCategory() {
+            const input = document.getElementById('newCategoryInput');
+            const newCategory = input.value.trim();
+            
+            if (newCategory && !categories.includes(newCategory)) {
+                categories.push(newCategory);
+                input.value = '';
+                renderCategories();
+            }
+        }
+
+        // 删除分类
+        function removeCategory(category) {
+            if (categories.length > 1) {
+                categories = categories.filter(c => c !== category);
+                renderCategories();
+            }
+        }
+
+        // 初始化示例数据
+        function initSampleData() {
+            const sampleProducts = [
+                {
+                    id: 1,
+                    name: 'iPhone 15 Pro',
+                    category: '电子产品',
+                    price: 7999,
+                    stock: 10,
+                    sold: false,
+                    image: null
+                },
+                {
+                    id: 2,
+                    name: '棉质T恤',
+                    category: '服装',
+                    price: 99,
+                    stock: 50,
+                    sold: true,
+                    image: null
+                }
+            ];
+            
+            products = sampleProducts;
+            renderProducts();
+            updateStats();
+        }
+
+        // 加载示例数据
+        initSampleData();
+    </script>
+</body>
+</html>
